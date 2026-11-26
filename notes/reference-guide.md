@@ -312,6 +312,46 @@ That is **who, what, where** - the three parts of a missing role assignment.
 
 **Example (quiz question):** a developer must *see* everything in `rg-docs-prod` but change nothing -> **Reader** on the resource group, via a group. Another must deploy but not grant access -> **Contributor** on that group.
 
+### Managed identity, explained step by step
+
+**The problem it solves.** Your app needs a secret (a database password, an API key). Where does the app keep the password it uses to *get* the secret? Whatever you answer is just another secret to hide - a "password to get the password". Managed identity removes that loop.
+
+**The idea.** Azure gives the *resource itself* an identity (like a badge) and handles the credentials for you. Your code never sees or stores a password. When the code runs inside Azure, Azure vouches for who it is.
+
+**Analogy.** A person logs in with a password. A *service principal* is a robot account whose password you must store and rotate. A **managed identity** is a robot account whose password **Azure keeps and rotates itself** - nobody, including you, ever has to know it.
+
+**How it works (what happens at runtime):**
+1. Your app (running on a VM, container, Function, App Service...) needs to call a service, e.g. Key Vault.
+2. It asks a local Azure endpoint: "give me a token for Key Vault". No password is sent.
+3. Azure checks that this app really runs with that identity, and returns a short-lived **token** from Entra ID.
+4. The app sends the token to Key Vault.
+5. Key Vault asks **RBAC**: does this identity hold a role (e.g. Key Vault Secrets User)? If yes, it returns the secret. If no, `ForbiddenByRbac`.
+
+**Two types:**
+| | System-assigned | User-assigned (what we used: `id-learning-app`) |
+|---|---|---|
+| Created | switched on **inside** a resource | as its **own** resource |
+| Lifetime | dies when the resource is deleted | independent; you delete it yourself |
+| Sharing | one resource only | can be attached to **many** resources |
+| Best for | one simple app | several apps sharing the same permissions, or when roles must exist before the app is created |
+
+**Steps to use one (always the same pattern):**
+1. Create or enable the identity.
+2. Attach it to the resource that runs your code (we attached it to the container).
+3. **Give the identity a role** on the target (Key Vault Secrets User on the vault, Storage Blob Data Reader on storage ...). *Skipping this is the most common mistake: the identity exists but is allowed to do nothing.*
+4. In code, use the Azure SDK's `DefaultAzureCredential` (or `az login --identity --client-id <clientId>`). It finds the identity automatically. On your laptop it uses your own `az login`, so the same code works locally and in Azure.
+
+**Two IDs:** `principalId` (object id - roles attach to this) and `clientId` (appId - used to sign in when more than one identity is attached).
+
+**What it is NOT:**
+- Not a password or key that you can copy out.
+- Not usable from outside Azure (a laptop or another cloud can't use it; it only works for resources running in Azure).
+- Not permission by itself - it is *who*; the **role** is *what it may do*.
+
+**Why it is better than a key (recap):** no secret to store or leak, rotation is automatic, access can be cut by removing one role, and the audit log shows which identity acted.
+
+**What we proved in Lab 6:** with Secrets User the container read the secret; after the role was removed the same container got `ForbiddenByRbac`. The identity never changed - only its permission did.
+
 ---
 
 ## Part 10 - Key Vault and managed identity

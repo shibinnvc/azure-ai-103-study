@@ -7,7 +7,7 @@
 - [x] Day 4: Storage security (SAS, lifecycle rules). Practical: SAS token + lifecycle rule. [tiny cost; delete after]
 - [x] Day 5: Identity (Entra ID, RBAC, managed identity). Practical: test user/group, assign Reader at resource-group scope. [free]
 - [x] Day 6: Key Vault + managed identity. Practical: store a secret, read it with managed identity. [tiny cost; delete after]
-- [ ] Day 7: Review + quiz. Practical: redo the week as Bicep, deploy, delete. [delete everything]
+- [x] Day 7: Review + quiz. Practical: redo the week as Bicep, deploy, delete. [delete everything]
 
 ## Learned
 ### Day 1 - Compute
@@ -71,6 +71,19 @@
 - **Soft delete / purge:** deleted vaults stay reserved (7-90 days). Purge protection blocks purging and can't be turned off, so it was left off in the lab; use it in production. We purged with `az keyvault purge`.
 - **Needed:** `Microsoft.ContainerInstance` provider registered once per subscription.
 - **Lab:** `infra/lab6-keyvault.bicep` + `infra/modules/keyvault.bicep`. Deployed, tested, deleted and purged (0 groups, 0 resources, 0 soft-deleted vaults).
+
+### Day 7 - Review + combined Bicep deployment
+- **Lab:** `infra/lab7-week2-review.bicep` composes the existing modules (network, storage, lifecycle, keyvault) in ONE deployment: what-if showed 10 changes (group, VNet, 2 NSGs, storage account + blob service + container + lifecycle policy, vault, identity). `az resource list` shows 6 because child resources aren't listed separately. Verified NSG rules, storage defaults, lifecycle rule, vault settings and tags; then deleted the group, purged the vault, and removed `NetworkWatcherRG` (auto-created, free).
+- **Modules + outputs:** a module that uses another module's output (lifecycle uses storage.outputs.storageName) gets an automatic dependency, so order is handled for us.
+- **Quiz result:** Q1 Functions (correct), Q3 GRS + Archive (correct; Archive isn't offered on ZRS/GZRS, so GRS), Q2 and Q4 corrected (NSG first match wins; upload needs Storage Blob Data Contributor, not read access). Q5-Q10 were not known, so they were taught:
+  - Q5 Cut off a leaked user delegation SAS: `revoke-delegation-keys` or remove the signer's data role.
+  - Q6 Lifecycle "30 days" counts from last modification (last access only if access tracking is on).
+  - Q7 Deploy but not grant: Contributor, at the resource group, assigned to a group.
+  - Q8 Password-free secret read needs a managed identity AND a role on the vault (e.g. Key Vault Secrets User).
+  - Q9 Purge protection stays off in labs because it can't be turned off and blocks purging; use it in production.
+  - Q10 Uploads = Blob storage, secret = Key Vault, runs a few times a day = Functions.
+- **Re-test needed:** ask a fresh set of questions on Q5-Q10 topics before moving on.
+- **Concept confusions cleared:** SAS = a link with a signature giving limited, time-boxed access. Entra ID is the directory/sign-in system; a managed identity is one kind of identity inside it, for Azure resources, with no secret.
 
 ## Questions
 -
