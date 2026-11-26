@@ -6,7 +6,7 @@
 - [x] Day 3: Storage (blob, files, queue, table; redundancy; tiers). Practical: storage account, container, upload a file. [tiny cost; delete after]
 - [x] Day 4: Storage security (SAS, lifecycle rules). Practical: SAS token + lifecycle rule. [tiny cost; delete after]
 - [x] Day 5: Identity (Entra ID, RBAC, managed identity). Practical: test user/group, assign Reader at resource-group scope. [free]
-- [ ] Day 6: Key Vault + managed identity. Practical: store a secret, read it with managed identity. [tiny cost; delete after]
+- [x] Day 6: Key Vault + managed identity. Practical: store a secret, read it with managed identity. [tiny cost; delete after]
 - [ ] Day 7: Review + quiz. Practical: redo the week as Bicep, deploy, delete. [delete everything]
 
 ## Learned
@@ -59,6 +59,18 @@
 - **SAS from a backend:** backend (managed identity, Storage Blob Delegator + data role) fetches a user delegation key occasionally and signs short-lived SAS tokens locally per user action.
 - **Lesson learned:** the activity log can lag a few minutes, so a new resource may not show its creator right away.
 - **Lab:** `infra/lab5-identity.bicep` (empty group); user, group and role assignments done in the portal. All deleted (group, user, resource group).
+
+### Day 6 - Key Vault + managed identity
+- **Key Vault** = one protected place for secrets (strings), keys (crypto keys that never leave) and certificates. Access via RBAC, logged, rotate in one place. Never put secrets in code, git or tags.
+- **RBAC mode** (`enableRbacAuthorization: true`) replaces old access policies. Roles: **Key Vault Secrets Officer** (manage secrets), **Key Vault Secrets User** (read only).
+- **Owner is control plane only:** an Owner got `ForbiddenByRbac` writing a secret until given Secrets Officer at the vault scope (data plane). Same split as storage on Day 3. Smallest fix = the data role at the narrowest scope.
+- **Managed identity flow:** app -> Entra gets a token for the identity -> Key Vault checks RBAC -> value returned. No password anywhere.
+- **Tested:** user-assigned identity `id-learning-app` + Secrets User -> a container (ACI, `az login --identity --client-id ...`) read the secret. After removing that one role assignment the same container got `ForbiddenByRbac`.
+- **IDs:** a managed identity has a principalId (object id; roles attach to this) and a clientId (appId; used to sign in). `az role assignment list` shows the client id as principalName.
+- **Gotchas:** newer Azure CLI rejects `az login --identity --username`; use `--client-id`. My test echo returned exit code 0 even though the read failed, so apps must check errors. Role changes take a minute or more; the container's log is empty until it finishes.
+- **Soft delete / purge:** deleted vaults stay reserved (7-90 days). Purge protection blocks purging and can't be turned off, so it was left off in the lab; use it in production. We purged with `az keyvault purge`.
+- **Needed:** `Microsoft.ContainerInstance` provider registered once per subscription.
+- **Lab:** `infra/lab6-keyvault.bicep` + `infra/modules/keyvault.bicep`. Deployed, tested, deleted and purged (0 groups, 0 resources, 0 soft-deleted vaults).
 
 ## Questions
 -
